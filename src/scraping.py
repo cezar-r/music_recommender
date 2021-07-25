@@ -38,7 +38,11 @@ class LyricScraper:
                 self._get_genres(artist, song, retries)
             else:
                 return None
-        tracks = json_text['toptracks']
+        try:
+            tracks = json_text['toptracks']
+        except Exception as e:
+            print(str(e) + '\n Couldnt find songs for: ' + artist)
+            return None
         track = tracks['track']
         for json_obj in track:
             song_name = json_obj['name']

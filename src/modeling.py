@@ -21,6 +21,11 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import NMF, PCA
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+from datetime import datetime
+import pickle
+
+sid = SentimentIntensityAnalyzer()
 
 
 '''
@@ -28,16 +33,23 @@ TODO
 add absolute sentiment/2 difference (make sentiment 0 to 1 instead of -1 to 1) to euc distance
 sum(|sent_i - sent_n|/2, euc(pca_i, pca_n))
 '''
-class Recommender:
+class SongRecommender:
 
 	def __init__(self):
 		self.fit()
+
+
+
+	def _text_to_score(self, text):
+		return sid.polarity_scores(text)['compound']
+
 
 
 	def _vectorizer(self, data):
 		tfidf = TfidfVectorizer()
 		X = tfidf.fit_transform(data).toarray()
 		return X, np.array(tfidf.get_feature_names())
+
 
 
 	def _get_data(self, df):
@@ -54,15 +66,17 @@ class Recommender:
 		return data, y, self._label_map
 
 
+
 	def _fit(self, df):
 		data, y, label_map = self._get_data(df)
 		vect, vocab = self._vectorizer(data)
 		ss = StandardScaler()
 		X = ss.fit_transform(vect)
-		pca = PCA(n_components = 5)
+		pca = PCA(n_components = 10)
 		X_pca = pca.fit_transform(X)
 		return X_pca, y
 		# plot_mnist_embedding(X_pca, y, label_map)
+
 
 
 	def _clean_col(self, x):
@@ -72,51 +86,64 @@ class Recommender:
 			return x.strip(f'\r')
 
 
+
 	def fit(self):
 		df = pd.read_csv('../data/test.txt', delimiter = '|', lineterminator='\n')
 		df.columns = ['artist', 'song', 'lyrics', 'genre']
 		df['song'] = df[['song', 'artist']].agg(' by '.join, axis=1)
 		df['genre'] = df.loc[:, 'genre'].apply(self._clean_col)
-
-		song_target_df = df.drop(['artist', 'genre'], axis=1)
-		song_target_df.columns = ['target', 'words']
-
-		artist_target_df = df.drop(['song', 'genre'], axis=1)
-		artist_target_df.columns = ['target', 'words']
-
-		self._artist_X, self._artist_y = self._fit(artist_target_df)
-		self._song_X, self._song_y = self._fit(song_target_df)
+		print('getting sentiment')
+		start_time = datetime.now()
+		df['sentiment'] = df['lyrics'].apply(self._text_to_score)
 
 		self.df = df
+		print('got sentiment')
+		print(datetime.now() - start_time)
+
+		song_target_df = df.drop(['artist', 'genre', 'sentiment'], axis=1)
+		song_target_df.columns = ['target', 'words']
+
+		artist_target_df = df.drop(['song', 'genre', 'sentiment'], axis=1)
+		artist_target_df.columns = ['target', 'words']
+
+		# self._artist_X, self._artist_y = self._fit(artist_target_df)
+		self._song_X, self._song_y = self._fit(song_target_df)
+
+		self._song_neighbors()
 
 
-	def fetch_artists(self, artist, n_artists):
-		pass
-		# take mean coordinates for each target label (artist)
-		# compare mean coord of artist_input to other artists
+	def _sentiment_diff(self, song, other_song):
+		song_sent = self.df['sentiment'][self.df['song'] == song].values[0]
+		other_song_sent = self.df['sentiment'][self.df['song'] == other_song].values[0]
+		return abs(song_sent - other_song_sent)/2
+
 
 
 	def _find_nearest_songs(self, song, coords, n_songs):
 		label_list_dict = {}
 		for i in range(len(self._song_X)):
 			euc_dist = np.sqrt((self._song_X[i, 0] - coords[0])**2 + (self._song_X[i, 1] - coords[1])**2)
-			label_list_dict[self._label_map[str(self._song_y[i])]] = euc_dist
+			sent_dif = self._sentiment_diff(song, other_song = self._label_map[str(self._song_y[i])])
+			total_dist = euc_dist + sent_dif
+			label_list_dict[self._label_map[str(self._song_y[i])]] = total_dist
 		sorted_songs = [(k, v) for k, v in sorted(list(label_list_dict.items()), key=lambda x: x[1])]
 		return [i for i, j in sorted_songs if i != song ][:n_songs]
 
 
 
-	def fetch_songs(self, song, n_songs):
+	def _fetch_songs(self, song, n_songs=100, verbose = False):
 		labels = self._song_y.tolist()
 		num = list(self._label_map.keys())[list(self._label_map.values()).index(song)]
 		idx = labels.index(int(num))
-
 		coords = self._song_X[idx, 0], self._song_X[idx, 1]
 		nearest_songs = self._find_nearest_songs(song, coords, n_songs)
 
-		print(f'Recommended songs for "{song.split(" by ")[0].title()}" by {song.split(" by ")[1].title()}\n')
-		for song in nearest_songs:
-			print(f'"{song.split(" by ")[0].title()}" by {song.split(" by ")[1].title()}')
+		if verbose:
+			print(f'Recommended songs for "{song.split(" by ")[0].title()}" by {song.split(" by ")[1].title()}\n')
+			for song in nearest_songs:
+				print(f'"{song.split(" by ")[0].title()}" by {song.split(" by ")[1].title()}')
+
+		return nearest_songs
 
 		# print(f'Recommended songs for "{song.title()}" by {self.df.loc[self.df["song"] == song, "artist"].iloc[0].title()}:\n')
 
@@ -126,6 +153,35 @@ class Recommender:
 
 
 
-r = Recommender()
-r.fetch_songs("Donald Trump by mac miller", n_songs=10)
+	def _song_neighbors(self):
+		self._song_neighbors = {}
+		c = 0
+		for i in range(len(self._song_X)):
+			if c == 10:
+				break
+			song_name = self._label_map[str(self._song_y[i])]
+			print(song_name)
+			start_time = datetime.now()
+			neighbors = self._fetch_songs(song_name)
+			print(datetime.now() - start_time)
+			self._song_neighbors[song_name] = neighbors
+			c += 1
 
+
+	def fetch_artists(self, artist, n_artists):
+		pass
+		# take mean coordinates for each target label (artist)
+		# compare mean coord of artist_input to other artists
+
+
+	def fetch_songs(self, song, n_songs=100):
+		neighbors = self._song_neighbors[song]
+		for i, song in enumerate(neighbors):
+			if i <= n_songs:
+				print(f'"{song.split(" by ")[0].title()}" by {song.split(" by ")[1].title()}')
+
+
+sr = SongRecommender()
+save_model = open('../models/songrecommender.pickle', 'wb')
+pickle.dump(sr, save_model)
+save_model.close()

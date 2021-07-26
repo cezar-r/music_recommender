@@ -24,7 +24,8 @@ from sklearn.decomposition import NMF, PCA
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from datetime import datetime
 import pickle
-
+import nltk
+nltk.download('vader_lexicon')
 sid = SentimentIntensityAnalyzer()
 
 
@@ -155,17 +156,13 @@ class SongRecommender:
 
 	def _song_neighbors(self):
 		self._song_neighbors = {}
-		c = 0
 		for i in range(len(self._song_X)):
-			if c == 10:
-				break
 			song_name = self._label_map[str(self._song_y[i])]
 			print(song_name)
 			start_time = datetime.now()
 			neighbors = self._fetch_songs(song_name)
 			print(datetime.now() - start_time)
 			self._song_neighbors[song_name] = neighbors
-			c += 1
 
 
 	def fetch_artists(self, artist, n_artists):
@@ -182,6 +179,7 @@ class SongRecommender:
 
 
 sr = SongRecommender()
+print("saving model")
 save_model = open('../models/songrecommender.pickle', 'wb')
 pickle.dump(sr, save_model)
 save_model.close()

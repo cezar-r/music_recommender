@@ -24,6 +24,9 @@ from sklearn.decomposition import NMF, PCA
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from datetime import datetime
 import pickle
+<<<<<<< HEAD
+import json
+
 import nltk
 nltk.download('vader_lexicon')
 sid = SentimentIntensityAnalyzer()
@@ -36,13 +39,22 @@ sum(|sent_i - sent_n|/2, euc(pca_i, pca_n))
 '''
 class SongRecommender:
 
-	def __init__(self):
-		self.fit()
+	def __init__(self, fit = False):
+		if fit:
+			self.fit()
 
 
 
 	def _text_to_score(self, text):
 		return sid.polarity_scores(text)['compound']
+
+
+
+	def _clean_col(self, x):
+		if type(x) == float:
+			return 0
+		else:
+			return x.strip(f'\r')
 
 
 
@@ -80,14 +92,6 @@ class SongRecommender:
 
 
 
-	def _clean_col(self, x):
-		if type(x) == float:
-			return 0
-		else:
-			return x.strip(f'\r')
-
-
-
 	def fit(self):
 		df = pd.read_csv('../data/test.txt', delimiter = '|', lineterminator='\n')
 		df.columns = ['artist', 'song', 'lyrics', 'genre']
@@ -107,10 +111,12 @@ class SongRecommender:
 		artist_target_df = df.drop(['song', 'genre', 'sentiment'], axis=1)
 		artist_target_df.columns = ['target', 'words']
 
-		# self._artist_X, self._artist_y = self._fit(artist_target_df)
+		self._artist_X, self._artist_y = self._fit(artist_target_df)
 		self._song_X, self._song_y = self._fit(song_target_df)
 
 		self._song_neighbors()
+		self._artist_neighbors()
+
 
 
 	def _sentiment_diff(self, song, other_song):
@@ -137,20 +143,18 @@ class SongRecommender:
 		num = list(self._label_map.keys())[list(self._label_map.values()).index(song)]
 		idx = labels.index(int(num))
 		coords = self._song_X[idx, 0], self._song_X[idx, 1]
-		nearest_songs = self._find_nearest_songs(song, coords, n_songs)
-
-		if verbose:
+		nearest_songs = self._find_nearest_songs(song, coords, n_sonif verbose:
 			print(f'Recommended songs for "{song.split(" by ")[0].title()}" by {song.split(" by ")[1].title()}\n')
 			for song in nearest_songs:
-				print(f'"{song.split(" by ")[0].title()}" by {song.split(" by ")[1].title()}')
-
+				print(f'"{song.split(" by ")[0].title()}" by {song.split(" by ")[1].title()}')gs)
+		
 		return nearest_songs
 
-		# print(f'Recommended songs for "{song.title()}" by {self.df.loc[self.df["song"] == song, "artist"].iloc[0].title()}:\n')
 
-		# nearest_songs_artists = [self.df.loc[self.df['song'] == i, 'artist'].iloc[0] for i in nearest_songs]
-		# for song, artist in list(zip(nearest_songs, nearest_songs_artists)):
-		# 	print(f'"{song.title()}" by {artist.title()}')
+
+	def _to_json(self):
+		with open("song_neighbors.json", "w") as outfile: 
+    		json.dump(self._song_neighbors, outfile)
 
 
 
@@ -163,12 +167,25 @@ class SongRecommender:
 			neighbors = self._fetch_songs(song_name)
 			print(datetime.now() - start_time)
 			self._song_neighbors[song_name] = neighbors
+		self._to_json()
+
+
+
+	def _artist_neighbors(self):
+		self._artist_neighbirs = {}
+		for i in range(len(self._artist_X)):
+			artist_name = self._label_map[str(self._artist_y[i])]
+			print(artist_name)
+			start_time = datetime.now()
+			neighbors = self._fetch_artist(artist_name)
 
 
 	def fetch_artists(self, artist, n_artists):
 		pass
 		# take mean coordinates for each target label (artist)
 		# compare mean coord of artist_input to other artists
+
+
 
 
 	def fetch_songs(self, song, n_songs=100):
@@ -178,6 +195,19 @@ class SongRecommender:
 				print(f'"{song.split(" by ")[0].title()}" by {song.split(" by ")[1].title()}')
 
 
+
+
+
+
+
+if __name__ == '__main__':
+	sr = SongRecommender()
+	now = datetime.now()
+	# sr.fetch_songs("SICKO MODE by travis scott", n_songs = 20)
+	save_model = open('../models/songrecommender.pickle', 'wb')
+	pickle.dump(sr, save_model)
+	save_model.close()
+	
 sr = SongRecommender()
 print("saving model")
 save_model = open('../models/songrecommender.pickle', 'wb')

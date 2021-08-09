@@ -193,7 +193,7 @@ class LyricScraper:
                         if self.verbose:
                             print(f'"{song.title()}" by {artist.title()} has been written to file')
                 except Exception as e:
-                    print("\nException occurred \n" +str(e) )
+                    print("\nException occurred \n" + str(e))
                     if self.verbose:
                         print(lyric)
                 print(' ')
@@ -223,13 +223,13 @@ class LyricScraper:
                 if self.verbose:
                     print(f'"{song.title()}" by {artist.title()} has been written to file')
         except Exception as e:
-            print("\nException occurred \n" +str(e) )
+            print("\nException occurred \n" + str(e))
             if self.verbose:
                 print(lyric)
 
 
+
 if __name__ == '__main__':
-    print(len(artists))
     s = LyricScraper(artists)
     s.write()
 
